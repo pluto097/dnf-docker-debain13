@@ -1,0 +1,215 @@
+# Build dependencies: GeoIP data, MySQL 5.7, and dnf-compat-layer
+FROM debian:stable-slim AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget ca-certificates curl gcc-multilib git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH="/usr/local/cargo/bin:${PATH}"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal \
+    && rustup target add i686-unknown-linux-gnu
+
+# Download GeoIP Legacy database
+RUN mkdir -p /usr/local/share/GeoIP && \
+    wget -q -O /usr/local/share/GeoIP/GeoIP.dat.gz https://mailfud.org/geoip-legacy/GeoIP.dat.gz && \
+    gunzip /usr/local/share/GeoIP/GeoIP.dat.gz
+
+# Extract MySQL 5.7 minimal
+RUN MYSQL=mysql-5.7.44-linux-glibc2.12-x86_64 && \
+    cd /tmp && \
+    wget -q https://downloads.mysql.com/archives/get/p/23/file/${MYSQL}.tar.gz && \
+    tar -zxf ${MYSQL}.tar.gz && \
+    mkdir -p /mysql/bin /mysql/lib /mysql/share && \
+    cp ${MYSQL}/bin/mysql ${MYSQL}/bin/mysqld ${MYSQL}/bin/mysqld_safe \
+       ${MYSQL}/bin/mysqladmin ${MYSQL}/bin/mysqldump ${MYSQL}/bin/my_print_defaults \
+       ${MYSQL}/bin/mysql_ssl_rsa_setup ${MYSQL}/bin/resolveip /mysql/bin/ && \
+    cp -a ${MYSQL}/lib/*.so* /mysql/lib/ && \
+    cp -r ${MYSQL}/share/english ${MYSQL}/share/charsets /mysql/share/ && \
+    cp ${MYSQL}/share/*.sql ${MYSQL}/share/errmsg-utf8.txt /mysql/share/ 2>/dev/null || true && \
+    rm -rf /tmp/*
+
+# Build dnf-compat-layer workspace for i686-unknown-linux-gnu target
+# glibc-compat: hooks glibc ABI functions for Debian 13 compatibility.
+# geoip-compat: GeoIP Legacy API replacement for libGeoIP.so.1.
+ARG DNF_COMPAT_LAYER_VERSION="0.1.0"
+RUN git clone --branch ${DNF_COMPAT_LAYER_VERSION} --depth 1 https://github.com/llnut/dnf-compat-layer.git /src \
+    && cd /src && cargo build --workspace --release --target i686-unknown-linux-gnu
+
+FROM debian:stable-slim
+
+LABEL maintainer="llnut"
+
+ENV TZ=Asia/Shanghai \
+    DEBIAN_FRONTEND=noninteractive \
+    PATH="/usr/local/mysql/bin:${PATH}"
+
+# Install runtime dependencies
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    procps psmisc net-tools netcat-openbsd \
+    # i386 runtime
+    libc6:i386 libstdc++6:i386 zlib1g:i386 \
+    # i386 font rendering for captcha generation
+    libfreetype6:i386 libfontconfig1:i386 \
+    # MySQL 5.7 runtime
+    libaio1t64 libnuma1 libncurses6 libtinfo6 \
+    libssl3t64:i386 \
+    # supervisor
+    python3 python3-pip \
+    socat \
+    && pip3 install --no-cache-dir --break-system-packages 'setuptools>=69.5,<70' supervisor==4.2.5 \
+    && ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 \
+    && ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 \
+    && ln -sf /usr/lib/x86_64-linux-gnu/libaio.so.1t64 /usr/lib/x86_64-linux-gnu/libaio.so.1 \
+    # x86_64 SSL symlinks for MySQL 5.7
+    && ln -sf /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.6 \
+    && ln -sf /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.6 \
+    # i386 SSL symlinks for game binaries
+    && ln -sf /usr/lib/i386-linux-gnu/libssl.so.3 /lib/i386-linux-gnu/libssl.so.6 2>/dev/null || true \
+    && ln -sf /usr/lib/i386-linux-gnu/libcrypto.so.3 /lib/i386-linux-gnu/libcrypto.so.6 2>/dev/null || true \
+    && groupadd mysql && useradd -r -g mysql -s /bin/false mysql \
+    && mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql \
+    && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld /var/log/mysql \
+    && chmod 750 /var/lib/mysql /var/run/mysqld \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/*
+
+COPY --from=builder /usr/local/share/GeoIP /usr/local/share/GeoIP
+COPY --from=builder /mysql/bin/ /usr/local/mysql/bin/
+COPY --from=builder /mysql/lib/ /usr/local/mysql/lib/
+COPY --from=builder /mysql/share/ /usr/local/mysql/share/
+COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libglibc_compat.so /usr/lib/libglibc_compat.so
+COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libgeoip_compat.so /lib/i386-linux-gnu/libGeoIP.so.1
+
+# MySQL setup
+RUN for bin in mysql mysqld_safe mysqladmin mysqldump my_print_defaults; do \
+        ln -sf /usr/local/mysql/bin/$bin /usr/bin/$bin; \
+    done \
+    && ln -sf /usr/local/mysql/bin/mysqld /usr/sbin/mysqld \
+    && echo '/usr/local/mysql/lib' > /etc/ld.so.conf.d/mysql.conf \
+    && ldconfig \
+    && mkdir -p /etc/init.d \
+    # MySQL uses port 4000, configured in dnf_data/etc/my.cnf
+    && printf '#!/bin/bash\nexport PATH=/usr/local/mysql/bin:$PATH\ncase "$1" in\n  start)\n    shift\n    mkdir -p /var/run/mysqld /var/log/mysql\n    chown mysql:mysql /var/run/mysqld /var/log/mysql /var/lib/mysql\n    chmod 750 /var/run/mysqld\n    /usr/local/mysql/bin/mysqld_safe --defaults-file=/etc/my.cnf "$@" &\n    for i in $(seq 1 60); do\n      [ -S /var/lib/mysql/mysql.sock ] && echo "MySQL started" && break\n      sleep 1\n    done\n    ;;\n  stop)\n    /usr/local/mysql/bin/mysqladmin -u root shutdown 2>/dev/null || killall mysqld 2>/dev/null || true\n    sleep 2\n    ;;\n  restart)\n    $0 stop; $0 start "$@"\n    ;;\nesac\n' > /etc/init.d/mysql \
+    && chmod +x /etc/init.d/mysql \
+    && printf '#!/bin/bash\nif [ "$1" = "mysql" ]; then shift; /etc/init.d/mysql "$@"; else echo "Unknown service: $1"; exit 1; fi\n' > /usr/sbin/service \
+    && chmod +x /usr/sbin/service \
+    && printf '#!/bin/bash\nmkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql\nchown -R mysql:mysql /var/lib/mysql /var/run/mysqld /var/log/mysql\nchmod 750 /var/lib/mysql /var/run/mysqld\nrm -rf /var/lib/mysql/*\n/usr/local/mysql/bin/mysqld --defaults-file=/etc/my.cnf --initialize-insecure --user=mysql --basedir=/usr/local/mysql --datadir=/var/lib/mysql --explicit_defaults_for_timestamp\n' > /usr/bin/mysql_install_db \
+    && chmod +x /usr/bin/mysql_install_db
+
+# Install additional i386 shared libraries
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && cd /tmp \
+    && wget -q https://raw.githubusercontent.com/1995chen/dnf_util/refs/heads/main/common_pkgs/lib.tgz \
+    && tar -zxf lib.tgz \
+    && rm -f /tmp/libGeoIP* \
+    && mv /tmp/*.so /lib/i386-linux-gnu/ 2>/dev/null || true \
+    && mv /tmp/*.so.1 /lib/i386-linux-gnu/ 2>/dev/null || true \
+    && apt-get purge -y wget \
+    && apt-get autoremove -y \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
+
+# Download dnf-gate-server
+ARG GATE_VERSION="0.3.0"
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && GATE_REPO="llnut/dnf-login" && GATE_TARGET="x86_64-unknown-linux-musl" && \
+    if [ -z "${GATE_VERSION}" ]; then \
+        GATE_VERSION=$(wget -qO- "https://api.github.com/repos/${GATE_REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\(.*\)".*/\1/'); \
+    fi && \
+    [ -n "$GATE_VERSION" ] || { echo "ERROR: failed to fetch latest dnf-gate-server version" >&2; exit 1; } && \
+    GATE_ASSET="dnf-gate-server-${GATE_VERSION}-${GATE_TARGET}.tar.gz" && \
+    GATE_URL="https://github.com/${GATE_REPO}/releases/download/${GATE_VERSION}/${GATE_ASSET}" && \
+    wget -q -O "/tmp/${GATE_ASSET}" "${GATE_URL}" && \
+    wget -q -O "/tmp/${GATE_ASSET}.sha256" "${GATE_URL}.sha256" && \
+    EXPECTED=$(awk '{print $1}' "/tmp/${GATE_ASSET}.sha256") && \
+    ACTUAL=$(sha256sum "/tmp/${GATE_ASSET}" | awk '{print $1}') && \
+    [ "$EXPECTED" = "$ACTUAL" ] || { echo "ERROR: checksum mismatch for ${GATE_ASSET}" >&2; exit 1; } && \
+    tar -xzf "/tmp/${GATE_ASSET}" --strip-components=1 -C /usr/bin "dnf-gate-server-${GATE_VERSION}-${GATE_TARGET}/dnf-gate-server" && \
+    rm -f "/tmp/${GATE_ASSET}" "/tmp/${GATE_ASSET}.sha256" && \
+    apt-get purge -y wget && \
+    apt-get autoremove -y && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV MAIN_BRIDGE_IP='127.0.0.1' \
+    SERVER_GROUP_DB='cain' \
+    SERVER_GROUP=3 \
+    MAIN_MYSQL_HOST='' \
+    MAIN_MYSQL_PORT='' \
+    MAIN_MYSQL_ROOT_PASSWORD=88888888 \
+    MAIN_MYSQL_GAME_ALLOW_IP='' \
+    MYSQL_HOST='' \
+    MYSQL_PORT='' \
+    MYSQL_GAME_ALLOW_IP='' \
+    AUTO_PUBLIC_IP=false \
+    PUBLIC_IP='' \
+    GM_ACCOUNT=gm_user \
+    GM_PASSWORD=gm_pass \
+    GM_CONNECT_KEY=763WXRBW3PFTC3IXPFWH \
+    GM_LANDER_VERSION=20180307 \
+    DNF_DB_ROOT_PASSWORD=88888888 \
+    DNF_DB_GAME_PASSWORD='uu5!^%jg' \
+    WEB_USER=root \
+    WEB_PASS=123456 \
+    OPEN_CHANNEL='11,52' \
+    DDNS_ENABLE=false \
+    DDNS_DOMAIN='' \
+    DDNS_INTERVAL=10 \
+    NB_SETUP_KEY='' \
+    NB_MANAGEMENT_URL='' \
+    TS_AUTH_KEY='' \
+    TS_LOGIN_SERVER='https://controlplane.tailscale.com' \
+    DB_USER=game \
+    DB_NAME=d_taiwan \
+    GATE_AES_KEY='' \
+    GATE_BIND_ADDRESS='0.0.0.0:5505' \
+    GATE_RUST_LOG='info,dnf_gate_server=debug' \
+    RSA_PRIVATE_KEY_PATH='/data/privatekey.pem' \
+    INITIAL_CERA=1000 \
+    INITIAL_CERA_POINT=0 \
+    GATE_TLS_CERT_PATH='' \
+    GATE_TLS_KEY_PATH='' \
+    GATE_TLS_BIND_ADDRESS='0.0.0.0:5504' \
+    GATE_TLS_ONLY=false \
+    GAME_SERVER_IP=''
+
+COPY build/dnf_data/ /
+
+# Patch startup scripts to inject libglibc_compat.so via LD_PRELOAD
+RUN sed -i 's/awk \x27{print \$2}\x27/grep -oP "ERROR \\\\K[0-9]+"/g' /home/template/init/init_main_db.sh \
+    && sed -i 's/awk \x27{print \$2}\x27/grep -oP "ERROR \\\\K[0-9]+"/g' /home/template/init/init_server_group_db.sh \
+    # Remove history dir to avoid EEXIST failure during init
+    && rm -rf /home/template/neople/game/history \
+    # df_channel_r: add glibc-compat
+    && sed -i 's|LD_PRELOAD=/home/template/init/channel_hook.so:/dp2/libhook.so ./df_channel_r|LD_PRELOAD=/usr/lib/libglibc_compat.so:/home/template/init/channel_hook.so:/dp2/libhook.so ./df_channel_r|g' /home/template/init/run/start_channel.sh \
+    && sed -i 's|cat pid/\*\.pid .*|tail --pid=\$(cat pid/channel.pid) -f /dev/null|g' /home/template/init/run/start_channel.sh \
+    # df_bridge_r: add glibc-compat
+    && sed -i 's|LD_PRELOAD=/home/template/init/bridge_hook.so:/home/template/init/libhook.so ./df_bridge_r|LD_PRELOAD=/usr/lib/libglibc_compat.so:/home/template/init/bridge_hook.so:/home/template/init/libhook.so ./df_bridge_r|g' /home/template/init/run/start_bridge.sh \
+    # secagent: add glibc-compat
+    && sed -i 's|\./secagent|LD_PRELOAD=/usr/lib/libglibc_compat.so ./secagent|g' /home/template/init/run/start_zergsvr_secagent.sh \
+    # zergsvr: add glibc-compat
+    && sed -i 's|\./zergsvr|LD_PRELOAD=/usr/lib/libglibc_compat.so ./zergsvr|g' /home/template/init/run/start_zergsvr.sh \
+    # gunnersvr: add glibc-compat
+    && sed -i 's|\./gunnersvr|LD_PRELOAD=/usr/lib/libglibc_compat.so ./gunnersvr|g' /home/template/init/run/start_gunnersvr.sh \
+    # df_game_r: prepend glibc-compat to existing LD_PRELOAD
+    && sed -i 's|LD_PRELOAD="/dp2/libhook.so:/home/neople/game/frida.so" \./df_game_r|LD_PRELOAD="/usr/lib/libglibc_compat.so:/dp2/libhook.so:/home/neople/game/frida.so" ./df_game_r|g' /home/template/init/run/start_game.sh \
+    # Adapt my.cnf for MySQL 5.7
+    && sed -i 's/skip-locking/#skip-locking/g; s/skip-federated/#skip-federated/g' /etc/my.cnf \
+    && sed -i 's/^key_buffer =/key_buffer_size =/g; s/^table_cache =/table_open_cache =/g' /etc/my.cnf \
+    && sed -i 's/^thread_concurrency/#thread_concurrency/g' /etc/my.cnf \
+    && sed -i 's/^query_cache_size/query_cache_type = 1\nquery_cache_size/g' /etc/my.cnf \
+    && sed -i 's/max_connections = 819200/max_connections = 100000/g' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a basedir=/usr/local/mysql' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a datadir=/var/lib/mysql' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a user=mysql' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a pid-file=/var/run/mysqld/mysqld.pid' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a log-error=/var/log/mysql/error.log' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a symbolic-links=0' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a explicit_defaults_for_timestamp=1' /etc/my.cnf \
+    && sed -i '/\[mysqld\]/a sql_mode=NO_ENGINE_SUBSTITUTION' /etc/my.cnf \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache
+
+WORKDIR /root
+CMD ["/bin/bash", "/docker-entrypoint.sh"]

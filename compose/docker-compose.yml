@@ -1,7 +1,7 @@
 
 services:
   dnf-mysql:
-    image: dnf-mysql:1.0
+    image: pluto06199/dnf-mysql:latest
     container_name: dnf-mysql
     restart: unless-stopped
     ports:
@@ -21,7 +21,7 @@ services:
       - dnf_net
 
   dnf-server:
-    image: dnf-server-debain13:1.0
+    image: pluto06199/dnf-server-debain13:latest
     container_name: dnf-server  
     shm_size: 8g                
     restart: unless-stopped

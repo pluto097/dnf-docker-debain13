@@ -121,6 +121,9 @@ services:
       TZ: Asia/Shanghai
       ROOT_PASSWORD: ${ROOT_PASSWORD}     # 服务器密码（自行修改在.env文件）
       PUBLIC_IP: ${PUBLIC_IP}        # 本机IP（自行修改在.env文件）
+      AUTO_PUBLIC_IP: ${AUTO_PUBLIC_IP} # 是否自动获取公网IP
+      DDNS_ENABLE: ${DDNS_ENABLE} # 是否启用DDNS解析域名获取IP
+      DDNS_DOMAIN: ${DDNS_DOMAIN} # DDNS域名
       CLIENT_POOL_SIZE: 64       # 客户端池大小
       MYSQL_IP: dnf-mysql
     networks:
@@ -150,6 +153,10 @@ MYSQL_ROOT_PASSWORD=Password123 # MySQL根密码（自行修改）
 GATE_AES_KEY=a1b2c3d4e5f6789012345678901234567890abcdef0123456789abcdef012345 # 登录网关AES密钥（自行修改）
 ROOT_PASSWORD=Password123 # 服务器密码（自行修改）
 PUBLIC_IP=192.168.200.131 # 本机IP（自行修改）
+AUTO_PUBLIC_IP=false # 是否自动获取公网IP，true启用 false禁用，优先级低于PUBLIC_IP。如果启用该选项，请注释掉PUBLIC_IP行。
+DDNS_ENABLE=false # 是否启用DDNS解析域名获取IP，true启用 false禁用，优先级低于PUBLIC_IP和AUTO_PUBLIC_IP。如果启用该选项，请注释掉PUBLIC_IP行，AUTO_PUBLIC_IP行填写为false。
+DDNS_DOMAIN= # DDNS域名，例如: your-domain.com
+
 #镜像内预置了publickey.pem和privatekey.pem，用于登录网关加密通信，建议自行生成新的密钥对并且上传更新，更多信息请参考llnut网关登录器说明
 #publickey.pem放入server_data/data目录下更新，privatekey.pem放入mysql_data/privatekey目录下更新
 #预置了清风frida插件，如需dp2自行上传并加载
@@ -164,7 +171,10 @@ PUBLIC_IP=192.168.200.131 # 本机IP（自行修改）
 | `MYSQL_ROOT_PASSWORD` | MySQL 数据库 root 用户密码，请修改为安全密码 |
 | `GATE_AES_KEY` | 登录网关 AES 加密密钥，必须是 64 个十六进制字符 |
 | `ROOT_PASSWORD` | dnf-server 容器 SSH root 用户密码，请修改为安全密码 |
-| `PUBLIC_IP` | 你的服务器公网 IP 地址，客户端连接使用 |
+| `PUBLIC_IP` | 你的服务器公网 IP 地址，客户端连接使用，优先级最高 |
+| `AUTO_PUBLIC_IP` | 是否自动获取公网 IP，`true` 启用 `false` 禁用，优先级第二 |
+| `DDNS_ENABLE` | 是否启用 DDNS 解析域名获取 IP，`true` 启用 `false` 禁用，优先级最低 |
+| `DDNS_DOMAIN` | DDNS 域名，启用 `DDNS_ENABLE` 时需要填写 |
 
 
 #### 第三步：拉取镜像并启动

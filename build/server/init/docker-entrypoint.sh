@@ -14,11 +14,44 @@ else
     cp /dnf_data/{df_game_r,Script.pvf,frida.so,frida.js,frida.config,publickey.pem} /home/neople/game/
     cp /dnf_data/channel_hook.so /home/neople/channel/
     cp /dnf_data/bridge_hook.so /home/neople/bridge/
+    cp /dnf_data/libhook.so /home/neople/game/
     mkdir -p /data
     cp /dnf_data/readme.md /data/
     chmod +x /root/{run,stop}
 
     echo "服务端文件安装完成！"
+fi
+
+# PUBLIC_IP 优先级最高，如果已设置则跳过后续自动获取流程
+if [ -z "${PUBLIC_IP}" ]; then
+    # 第二优先级：如果启用 AUTO_PUBLIC_IP，则自动获取公网 IP
+    if [ "${AUTO_PUBLIC_IP}" = "true" ]; then
+        echo "正在自动获取公网 IP..."
+        PUBLIC_IP=$(curl -s -m 5 https://api.ipify.org || curl -s -m 5 https://ifconfig.me/ip || curl -s -m 5 https://icanhazip.com)
+        if [ -n "${PUBLIC_IP}" ]; then
+            echo "自动获取公网 IP 成功：${PUBLIC_IP}"
+        else
+            echo "错误：自动获取公网 IP 失败，请检查网络连接或手动设置 PUBLIC_IP"
+            exit 1
+        fi
+    # 第三优先级：如果启用 DDNS，则解析域名获取 IP
+    elif [ "${DDNS_ENABLE}" = "true" ] && [ -n "${DDNS_DOMAIN}" ]; then
+        echo "正在通过 DDNS 解析域名 ${DDNS_DOMAIN} 获取 IP..."
+        DDNS_IP=$(dig +short "${DDNS_DOMAIN}" | head -n 1)
+        if [ -n "${DDNS_IP}" ]; then
+            PUBLIC_IP="${DDNS_IP}"
+            echo "DDNS 解析成功，IP：${PUBLIC_IP}"
+        else
+            echo "错误：DDNS 解析 ${DDNS_DOMAIN} 失败，请检查域名配置"
+            exit 1
+        fi
+    fi
+fi
+
+# 检查 PUBLIC_IP 是否为空
+if [ -z "${PUBLIC_IP}" ]; then
+    echo "错误：PUBLIC_IP 环境变量不能为空，请设置正确的公网IP地址！"
+    exit 1
 fi
 
 # 获取 MySQL IP 并导出到环境变量

@@ -47,6 +47,9 @@ services:
       TZ: Asia/Shanghai
       ROOT_PASSWORD: ${ROOT_PASSWORD}     # 服务器密码（自行修改在.env文件）
       PUBLIC_IP: ${PUBLIC_IP}        # 本机IP（自行修改在.env文件）
+      AUTO_PUBLIC_IP: ${AUTO_PUBLIC_IP} # 是否自动获取公网IP
+      DDNS_ENABLE: ${DDNS_ENABLE} # 是否启用DDNS解析域名获取IP
+      DDNS_DOMAIN: ${DDNS_DOMAIN} # DDNS域名
       CLIENT_POOL_SIZE: 64       # 客户端池大小
       MYSQL_IP: dnf-mysql
     networks:

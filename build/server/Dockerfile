@@ -55,6 +55,7 @@ ENV TZ=Asia/Shanghai \
 RUN dpkg --add-architecture i386 \
     && apt-get update && apt-get install -y --no-install-recommends \
     procps psmisc net-tools netcat-openbsd \
+    curl dnsutils \
     # SSH 服务，用于远程管理
     openssh-server \
     # MySQL 客户端，用于连接数据库
@@ -135,13 +136,17 @@ RUN cp -r /dnf_data/docker-entrypoint.sh / \
 
 #环境变量
 ENV ROOT_PASSWORD=Mypassword123 
-ENV PUBLIC_IP=192.168.200.131
+ENV PUBLIC_IP=
 ENV MYSQL_IP=127.0.0.1
 ENV MYSQL_NAME=game
 ENV MYSQL_PASSWORD=uu5!^%jg
 ENV MYSQL_KEY=20e35501e56fcedbe8b10c1f8bc3595be8b10c1f8bc3595b
 ENV STUN_IP=${PUBLIC_IP}
 ENV CLIENT_POOL_SIZE=64
+ENV AUTO_PUBLIC_IP=false
+ENV DDNS_ENABLE=false
+ENV DDNS_DOMAIN=
+
 
 # 设置工作目录为 /root
 WORKDIR /root

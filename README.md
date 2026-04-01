@@ -565,7 +565,10 @@ services:
 | `MYSQL_ROOT_PASSWORD` | String | `Password123` | 是 | MySQL root 用户密码，首次设置后如需修改需要进入容器手动修改，该密码同时也是 game 用户密码 |
 | `GATE_AES_KEY` | String | `a1b2c3d4e5f6789012345678901234567890abcdef0123456789abcdef012345` | 是 | 登录网关 AES 加密密钥，必须是 64 个十六进制字符 |
 | `ROOT_PASSWORD` | String | `Password123` | 是 | dnf-server 容器 SSH root 用户密码 |
-| `PUBLIC_IP` | String | `192.168.200.131` | 是 | 服务器公网 IP 地址，客户端连接使用的 IP |
+| `PUBLIC_IP` | String | `192.168.200.131` | 条件 | 服务器公网 IP 地址，优先级最高，如果设置则忽略 AUTO_PUBLIC_IP 和 DDNS_ENABLE |
+| `AUTO_PUBLIC_IP` | Boolean | `false` | 否 | 是否自动获取公网 IP，`true` 启用，优先级第二 |
+| `DDNS_ENABLE` | Boolean | `false` | 否 | 是否启用 DDNS 解析域名获取 IP，`true` 启用，优先级最低 |
+| `DDNS_DOMAIN` | String | - | 条件 | DDNS 域名，启用 DDNS_ENABLE 时必填 |
 
 ---
 
@@ -603,7 +606,10 @@ services:
 |--------|---------|--------|------|------|
 | `TZ` | String | `Asia/Shanghai` | 否 | 时区设置 |
 | `ROOT_PASSWORD` | String | - | 是 | SSH root 用户密码，从 .env 获取 |
-| `PUBLIC_IP` | String | - | 是 | 服务器公网 IP，从 .env 获取 |
+| `PUBLIC_IP` | String | - | 条件 | 服务器公网 IP，从 .env 获取，优先级最高 |
+| `AUTO_PUBLIC_IP` | Boolean | `false` | 否 | 是否自动获取公网 IP，`true` 启用，优先级第二 |
+| `DDNS_ENABLE` | Boolean | `false` | 否 | 是否启用 DDNS 解析域名获取 IP，`true` 启用，优先级最低 |
+| `DDNS_DOMAIN` | String | - | 条件 | DDNS 域名，启用 DDNS_ENABLE 时必填 |
 | `CLIENT_POOL_SIZE` | Integer | `64` | 否 | 客户端连接池大小，根据服务器配置调整 |
 | `MYSQL_IP` | String | `dnf-mysql` | 否 | MySQL 服务器地址 |
 | `MYSQL_NAME` | String | `game` | 否 | MySQL 用户名 |
@@ -645,7 +651,20 @@ ROOT_PASSWORD=SSHPassword456!
 
 # 服务器公网 IP 地址（自行修改）
 # 请修改为你的服务器实际公网 IP
+# 优先级说明: PUBLIC_IP > AUTO_PUBLIC_IP > DDNS_ENABLE
+# 如果使用自动获取或 DDNS，请注释掉此行
 PUBLIC_IP=123.123.123.123
+
+# 是否自动获取公网 IP，true 启用 false 禁用
+# 如果启用此选项，请注释掉 PUBLIC_IP 行
+AUTO_PUBLIC_IP=false
+
+# 是否启用 DDNS 解析域名获取 IP，true 启用 false 禁用
+# 如果启用此选项，请注释掉 PUBLIC_IP 行，并将 AUTO_PUBLIC_IP 设置为 false
+DDNS_ENABLE=false
+
+# DDNS 域名，启用 DDNS_ENABLE 时填写，例如: your-domain.com
+DDNS_DOMAIN=
 
 # 镜像内预置了publickey.pem和privatekey.pem，用于登录网关加密通信，建议自行生成新的密钥对并且上传更新，更多信息请参考llnut网关登录器说明
 # publickey.pem放入server_data/data目录下更新，privatekey.pem放入mysql_data/privatekey目录下更新
@@ -653,6 +672,43 @@ PUBLIC_IP=123.123.123.123
 # df_game_r frida.js Script.pvf publickey.pem可放入server_data/data目录下更新
 # 一般情况下不需要修改docker-compose.yml文件，如需修改请自行查看源码内容
 ```
+
+#### 不同场景配置示例
+
+**场景 1：手动指定静态 IP（推荐）**
+
+如果你有固定公网 IP，直接手动指定：
+```env
+PUBLIC_IP=123.123.123.123
+AUTO_PUBLIC_IP=false
+DDNS_ENABLE=false
+DDNS_DOMAIN=
+```
+
+**场景 2：自动获取公网 IP**
+
+适用于动态 IP 但不想配置 DDNS 的场景，每次启动自动获取当前 IP：
+```env
+# PUBLIC_IP=123.123.123.123  # 注释掉这行
+AUTO_PUBLIC_IP=true
+DDNS_ENABLE=false
+DDNS_DOMAIN=
+```
+
+**场景 3：使用 DDNS 动态域名**
+
+适用于动态 IP 且已配置 DDNS 的场景，每次启动自动解析域名：
+```env
+# PUBLIC_IP=123.123.123.123  # 注释掉这行
+AUTO_PUBLIC_IP=false
+DDNS_ENABLE=true
+DDNS_DOMAIN=your-domain.com
+```
+
+**优先级规则：**
+- `PUBLIC_IP` 不为空 → 直接使用，忽略 `AUTO_PUBLIC_IP` 和 `DDNS_ENABLE`
+- `PUBLIC_IP` 为空，`AUTO_PUBLIC_IP=true` → 自动获取 IP，忽略 `DDNS_ENABLE`
+- `PUBLIC_IP` 为空，`AUTO_PUBLIC_IP=false`，`DDNS_ENABLE=true` → DDNS 解析域名
 
 ---
 

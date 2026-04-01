@@ -9,13 +9,16 @@ until mysqladmin ping -h "127.0.0.1" --silent; do
   sleep 2
 done
 
-# 恢复tmp文件夹中的dnf.sql，仅在第一次启动时执行
+# 恢复tmp文件夹中的dnf.sql，仅在第一次启动时执行（如果数据库不存在且SQL文件存在）
 if [ -f "/tmp/dnf.sql" ]; then
-    echo "正在恢复数据库备份..."
-    mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql || exit 1
-    echo "数据库恢复完成"
-    # 删除已恢复的SQL文件
-    rm -f "/tmp/dnf.sql"
+    # 检查d_taiwan数据库是否已经存在
+    if ! mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "USE d_taiwan;" 2>/dev/null; then
+        echo "正在恢复数据库备份..."
+        mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql || exit 1
+        echo "数据库恢复完成"
+    else
+        echo "数据库已存在"
+    fi
 fi
 
 # 获取 MySQL IP 并导出到环境变量

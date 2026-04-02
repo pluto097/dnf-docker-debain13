@@ -21,7 +21,7 @@ services:
       - dnf_net
 
   dnf-server:
-    image: pluto06199/dnf-server-qf:latest
+    image: pluto06199/dnf-server-sj:latest
     container_name: dnf-server  
     shm_size: 8g                
     restart: unless-stopped
@@ -42,7 +42,7 @@ services:
       - ./server_data/root:/root
       - ./server_data/data:/data
       - ./server_data/log:/home/neople/game/log
-      #- ./server_data/dp2:/dp2
+      - ./server_data/dp2:/dp2
     environment:
       TZ: Asia/Shanghai
       ROOT_PASSWORD: ${ROOT_PASSWORD}     # 服务器密码（自行修改在.env文件）

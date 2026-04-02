@@ -273,7 +273,8 @@ docker compose logs -f dnf-server
 该服务占用内存较大，可能被系统 OOM 杀死，重启命令：
 
 ```shell
-docker restart dnf
+cd /dnf
+docker compose restart
 ```
 或者使用ssh工具链接服务器，执行以下命令：
 
@@ -282,291 +283,6 @@ cd /root
 ./stop
 ./run
 ```
----
-
-
-## 高级部署（自行 Fork 与构建）
-
-本章节适用于需要自定义修改、二次开发或有特殊需求的用户。
-
-### Fork 项目代码仓库
-
-#### 第一步：Fork 项目
-
-1. 访问项目 GitHub 仓库
-2. 点击页面右上角 **Fork** 按钮
-3. 等待 Fork 完成，你将得到一个基于你的账号的副本
-
-#### 第二步：克隆你的 Fork
-
-```bash
-# 替换为你的 GitHub 用户名
-git clone https://github.com/你的用户名/docker-dnf-debian13.git
-cd docker-dnf-debian13
-```
-
-#### 第三步：添加上游远程（可选）
-
-如果你想保持与原项目同步，可以添加上游：
-
-```bash
-git remote add upstream https://github.com/pluto06199/docker-dnf-debian13.git
-```
-
-同步更新：
-
-```bash
-git fetch upstream
-git merge upstream/main
-```
-
----
-
-### 本地环境搭建要求
-
-#### 必需软件
-
-| 软件 | 最低版本 | 推荐版本 |
-|------|---------|---------|
-| Docker | 20.10.0+ | 25.0.0+ |
-| Docker Buildx | 最新 | 最新 |
-| Git | 2.20+ | 最新 |
-| 系统 | Linux/Windows/macOS | Linux |
-
-#### 资源要求
-
-- **CPU**: 至少 4 核（推荐 8 核+）
-- **内存**: 至少 8GB（推荐 16GB+）
-- **磁盘**: 至少 50GB 可用空间
-- **网络**: 能够访问 GitHub 和 Docker Hub
-
----
-
-### 构建步骤
-
-#### 第一步：拉取依赖（构建过程自动处理）
-
-项目构建过程会自动下载以下依赖：
-- dnf-gate-server（llnut 登录网关）
-- dnf-compat-layer（兼容层）
-- GeoIP 数据库
-- 32位兼容库
-
-这些都在 Dockerfile 中自动处理，无需手动下载。
-
-#### 第二步：构建 MySQL 镜像
-
-```bash
-cd build/mysql
-docker build -t dnf-mysql:1.0 .
-```
-
-**构建参数说明**：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `GATE_VERSION` | `0.3.0` | dnf-gate-server 版本，可指定不同版本 |
-
-**自定义版本构建示例**：
-```bash
-docker build --build-arg GATE_VERSION=0.3.1 -t dnf-mysql:1.0 .
-```
-
-**构建时间**：通常 2-5 分钟，取决于网络速度
-
-#### 第三步：构建游戏服务器镜像
-
-```bash
-cd ../server
-docker build -t dnf-server-debain13:1.0 .
-```
-
-**构建参数说明**：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `DNF_COMPAT_LAYER_VERSION` | `0.1.0` | dnf-compat-layer 版本 |
-
-**自定义版本构建示例**：
-```bash
-docker build --build-arg DNF_COMPAT_LAYER_VERSION=0.2.0 -t dnf-server-debain13:1.0 .
-```
-
-**构建时间**：通常 5-15 分钟，因为需要编译 Rust 项目
-
-> 💡 Rust 编译比较消耗资源，如果编译很慢，请检查 CPU 和内存配置
-
-#### 第四步：验证镜像构建成功
-
-```bash
-docker images | grep dnf
-```
-
-预期输出：
-
-```
-dnf-mysql               1.0       xxxxxx   xxxMB
-dnf-server-debain13     1.0       xxxxxx   xxxMB
-```
-
----
-
-### 自定义配置方法
-
-#### 修改数据库初始化 SQL
-
-将你的 SQL 文件放在 `build/mysql/init/` 目录下，修改 Dockerfile：
-
-```dockerfile
-# 修改这一行，将你的 SQL 文件复制进去
-COPY 你的sql文件.sql /tmp/dnf.sql
-```
-
-然后重新构建 MySQL 镜像。
-
-#### 添加自定义频道
-
-编辑 `compose/docker-compose.yml`，添加更多端口映射，去掉注释即可：
-
-```yaml
-ports:
-  # 已有频道...
-  # 去掉注释添加新的频道，例如频道 52
-  - 10052:10052/tcp    # df_game_r[ch.52] PVP
-  - 11052:11052/udp   # df_game_r[ch.52] PVP
-```
-
-#### 修改启动脚本
-
-编辑服务器启动入口脚本 `build/server/init/docker-entrypoint.sh`，添加你的自定义逻辑，然后重新构建镜像。
-
-#### 添加自定义 FRIDA 脚本
-
-将你的 FRIDA 文件放在 `compose/server_data/data/` 目录下通过数据卷自动加载：
-- `frida.config`
-- `frida.js`
-- `frida.so`
-
-或者放到构建目录 `build/server/init/` 然后重新构建镜像。
-
-#### 修改 RSA 密钥对
-
-项目已经预置了密钥对，但建议自行生成新的：
-
-```bash
-# 生成 RSA 私钥
-openssl genrsa -out privatekey.pem 2048
-# 生成公钥
-openssl rsa -in privatekey.pem -pubout -out publickey.pem
-```
-
-部署后将：
-- `publickey.pem` 放到 `compose/server_data/data/`
-- `privatekey.pem` 放到 `compose/mysql_data/privatekey/`
-
-然后重启容器：
-```bash
-docker compose restart
-```
-
----
-
-### 部署到不同环境
-
-#### 部署到本地服务器
-
-和一键部署步骤相同，直接在服务器上运行：
-
-```bash
-cd compose
-docker compose up -d
-```
-
-#### 部署到云服务器
-
-**额外步骤**：
-
-1. 在云控制台安全组开放所有必需端口
-2. 将 `.env` 中的 `PUBLIC_IP` 设置为你的云服务器公网 IP
-3. 如果使用内网数据库，修改 `docker-compose.yml` 中的 `MYSQL_IP`
-
-**示例**：
-
-```env
-# .env 文件
-PUBLIC_IP=123.123.123.123
-```
-
-#### 部署到 Kubernetes（K8s）
-
-项目使用 Docker Compose，可以使用 `kompose` 转换为 Kubernetes 资源：
-
-```bash
-# 安装 kompose
-curl -L https://github.com/kubernetes/kompose/releases/latest/download/kompose-linux-amd64 -o kompose
-chmod +x kompose
-sudo mv kompose /usr/local/bin/
-
-# 转换
-cd compose
-kompose convert -f docker-compose.yml
-
-# 应用到 Kubernetes
-kubectl apply -f .
-```
-
-> ⚠️ **注意**：Kubernetes 部署需要额外配置持久化存储和负载均衡，本项目不提供现成的 YAML 文件，请根据你的集群环境自行调整。
-
-#### 部署到 Docker Swarm
-
-```bash
-# 初始化 Swarm（如果还没有）
-docker swarm init
-
-# 部署栈
-cd compose
-docker stack deploy -c docker-compose.yml dnf
-
-# 查看状态
-docker stack ps dnf
-```
-
-#### 多机部署（MySQL 和 游戏服务器分离）
-
-如果你想将 MySQL 和游戏服务器部署在不同机器上：
-
-**MySQL 节点**：
-```yaml
-# docker-compose-mysql.yml
-services:
-  dnf-mysql:
-    image: pluto06199/dnf-mysql:latest
-    ports:
-      - 3306:3306
-      - 5505:5505
-    environment:
-      MYSQL_ROOT_PASSWORD: xxx
-      GATE_AES_KEY: xxx
-      GAME_SERVER_IP: 游戏服务器IP
-    # ... 其他配置
-```
-
-**游戏服务器节点**：
-```yaml
-# docker-compose-server.yml
-services:
-  dnf-server:
-    image: pluto06199/dnf-server-debain13:latest
-    ports:
-      - 2222:22
-      # ... 其他游戏端口
-    environment:
-      ROOT_PASSWORD: xxx
-      PUBLIC_IP: 你的公网IP
-      MYSQL_IP: MySQL服务器IP
-    # ... 其他配置
-```
-
 ---
 
 ## 环境变量解释
@@ -789,13 +505,22 @@ volumes:
 
 ---
 
-## 相关镜像
 
-- [pluto06199/dnf-mysql on Docker Hub](https://hub.docker.com/r/pluto06199/dnf-mysql)
-- [pluto06199/dnf-server-debain13 on Docker Hub](https://hub.docker.com/r/pluto06199/dnf-server-debain13)
+## 沟通交流
 
----
+QQ 1群：852685848(已满)
 
-## 许可证
+QQ 2群：418505204(已满)
 
-本项目仅供学习研究使用。
+QQ 3群：954929189(已满)
+
+QQ 5群：738105518
+
+欢迎各路大神加入。一起完善项目，成就当年梦，800万勇士冲！
+
+## 申明
+```
+虽然支持外网，但是千万别拿来开服。只能拿来学习使用!!!
+虽然支持外网，但是千万别拿来开服。只能拿来学习使用!!!
+虽然支持外网，但是千万别拿来开服。只能拿来学习使用!!!
+```

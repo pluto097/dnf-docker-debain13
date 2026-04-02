@@ -27,13 +27,15 @@ FROM mysql:5.7.44
 
 LABEL maintainer="Pluto"
 
+ARG SQL_FILENAME=dnf2.sql
+
 COPY --from=builder /usr/bin/dnf-gate-server /usr/bin/dnf-gate-server
 
 # 复制my.cnf到配置目录
 COPY init/my.cnf /etc/mysql/conf.d/my.cnf
 
-# 复制dnfsql_5.6.51_20250526.sql到配置目录
-COPY init/dnf2.sql /tmp/dnf.sql
+# 复制SQL文件到配置目录，可通过构建参数指定文件名
+COPY init/${SQL_FILENAME} /tmp/dnf.sql
 COPY init/privatekey.pem /tmp/
 # 复制llnutgate
 #COPY llnutgate/ /root/

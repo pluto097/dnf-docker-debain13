@@ -11,15 +11,24 @@ done
 
 # 恢复tmp文件夹中的dnf.sql，仅在第一次启动时执行（如果数据库不存在且SQL文件存在）
 if [ -f "/tmp/dnf.sql" ]; then
-    # 检查d_taiwan数据库是否已经存在
-    if ! mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "USE d_taiwan;" 2>/dev/null; then
+
+    exists=$(mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -s -e \
+    "SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='d_taiwan' LIMIT 1;" 2>/dev/null)
+
+    if [ "$exists" != "1" ]; then
         echo "正在恢复数据库备份..."
-        mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql || exit 1
+        
+        if ! mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql; then
+            echo "数据库恢复失败" >&2
+            exit 1
+        fi
+
         echo "数据库恢复完成"
     else
         echo "数据库已存在"
     fi
 fi
+
 
 # 获取 MySQL IP 并导出到环境变量
 export MYSQL_IP=$(getent hosts dnf-mysql | awk '{ print $1 }')

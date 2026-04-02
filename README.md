@@ -70,9 +70,10 @@ docker compose version
 
 #### 第一步：获取配置文件
 
-直接使用项目中已提供的 `docker-compose.yml` 和 `.env` 配置文件：
+直接使用项目中已提供的 `docker-compose.yml` 和 `.env` 配置文件（其他版本自行到Compose目录下获取）：
 
 ```yaml
+
 services:
   dnf-mysql:
     image: pluto06199/dnf-mysql:latest
@@ -95,12 +96,12 @@ services:
       - dnf_net
 
   dnf-server:
-    image: pluto06199/dnf-server-debain13:latest
+    image: pluto06199/dnf-server-qf:latest
     container_name: dnf-server  
     shm_size: 8g                
     restart: unless-stopped
     ports:
-      - "2222:22"           # 服务器SSH端口
+      - 2222:22/tcp           # 服务器SSH端口
       - 7001:7001/tcp		  # df_channel_r
       - 7001:7001/udp		  # df_channel_r
       - 7200:7200/tcp		  # df_relay_r
@@ -121,6 +122,7 @@ services:
       TZ: Asia/Shanghai
       ROOT_PASSWORD: ${ROOT_PASSWORD}     # 服务器密码（自行修改在.env文件）
       PUBLIC_IP: ${PUBLIC_IP}        # 本机IP（自行修改在.env文件）
+      STUN_IP: ${PUBLIC_IP}        # STUN服务器IP
       AUTO_PUBLIC_IP: ${AUTO_PUBLIC_IP} # 是否自动获取公网IP
       DDNS_ENABLE: ${DDNS_ENABLE} # 是否启用DDNS解析域名获取IP
       DDNS_DOMAIN: ${DDNS_DOMAIN} # DDNS域名
@@ -159,7 +161,6 @@ DDNS_DOMAIN= # DDNS域名，例如: your-domain.com
 
 #镜像内预置了publickey.pem和privatekey.pem，用于登录网关加密通信，建议自行生成新的密钥对并且上传更新，更多信息请参考llnut网关登录器说明
 #publickey.pem放入server_data/data目录下更新，privatekey.pem放入mysql_data/privatekey目录下更新
-#预置了清风frida插件，如需dp2自行上传并加载
 #df_game_r frida.js Script.pvf publickey.pem可放入server_data/data目录下更新
 #一般情况下不需要修改docker-compose.yml文件,如需修改请自行查看源码内容
 ```
@@ -241,7 +242,11 @@ docker compose logs -f dnf-server
 **部署成功后**：
 
 #### 第五步：配置客户端
-**下载客户端**：[百度网盘](https://pan.baidu.com/s/1AuDJ-VO4A9uToAsrg6ETGw?pwd=sora)，提取码：`sora`
+**清风客户端**：[百度网盘](https://pan.baidu.com/s/1AuDJ-VO4A9uToAsrg6ETGw?pwd=sora)，提取码：`sora`（该客户端已集成llnut登陆器，无需额外下载）
+
+**神迹客户端**：[百度网盘](https://pan.baidu.com/s/1i79H2LY1NkFzLeK_BxNGfQ?pwd=4h3p)，提取码：`4h3p`(该客户端未集成llnut登陆器，需要自行下载并配置)
+
+**llnut登陆器**：[llnut/dnf-login](https://github.com/llnut/dnf-login)
 
 **1. 解压客户端**
 

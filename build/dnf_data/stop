@@ -1,0 +1,38 @@
+#!/bin/bash
+export DNF_DIR="/home/neople/"
+
+processes=(
+    df_stun_r
+    df_monitor_r
+    df_manager_r
+    df_relay_r
+    df_bridge_r
+    df_channel_r
+    df_dbmw_r
+    df_auction_r
+    df_point_r
+    df_guild_r
+    df_statics_r
+    df_coserver_r
+    df_community_r
+    gunnersvr
+    zergsvr
+    df_game_r
+    secagent
+    df_monitor_P_r
+    df_guild_P_r
+    df_statics_P_r
+	df_Script_r
+)
+
+mysql -ugame -p'uu5!^%jg' -h127.0.0.1 -e "FLUSH TABLES;"
+
+for process in "${processes[@]}"
+do
+    killall -9 "$process"
+done
+
+find ${DNF_DIR} \( -name '*.log' -o -name '*.pid' -o -name 'core.*' -o -name '*.cri' -o -name '*.debug' -o -name '*.error' -o -name '*.init' -o -name '*.snap' \) -type f -print -exec rm -f {} +
+find /dp2/ -name '*.log' -type f -print -exec rm -f {} +
+
+echo -e "\033[35mDNF服务已停止运行！\033[0m"

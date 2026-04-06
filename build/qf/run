@@ -107,17 +107,20 @@ rm -f /home/neople/community/pid/*.pid
 rm -rf /home/neople/community/log/*.*
 ./df_community_r community start &
 
-cd /home/neople/secsvr/gunnersvr
-chmod 755 *
-rm -f /home/neople/secsvr/gunnersvr/*.pid
-LD_PRELOAD="/usr/lib/libglibc_compat.so" ./gunnersvr -t30 -i1  &
-
 cd /home/neople/secsvr/zergsvr
 chmod 755 *
 rm -f /home/neople/secsvr/zergsvr/*.pid
-
-LD_PRELOAD="/usr/lib/libglibc_compat.so" ./secagent  &
+rm -rf /home/neople/secsvr/zergsvr/log/*.*
 LD_PRELOAD="/usr/lib/libglibc_compat.so" ./zergsvr -t30 -i1  &
+sleep 2
+LD_PRELOAD="/usr/lib/libglibc_compat.so" ./secagent  &
+
+sleep 2
+cd /home/neople/secsvr/gunnersvr
+chmod 755 *
+rm -f /home/neople/secsvr/gunnersvr/*.pid
+rm -rf /home/neople/secsvr/gunnersvr/log/*.*
+LD_PRELOAD="/usr/lib/libglibc_compat.so" ./gunnersvr -t30 -i1  &
 
 cd /home/neople/game
 chmod 755 *

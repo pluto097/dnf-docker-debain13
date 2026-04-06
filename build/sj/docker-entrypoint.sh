@@ -9,20 +9,21 @@ if find /home -name "db_info_tw.*" -print -quit 2>/dev/null | grep -q .; then
     echo "服务端已安装..."
 else
     echo "开始安装服务端..."
-    tar -xzf /dnf_data/Service_20250526.tar.gz -C /
-    cat /dnf_data/Script.tar.gz.partaa /dnf_data/Script.tar.gz.partab /dnf_data/Script.tar.gz.partac | tar -xzf - -C /home/neople/game/
-    cp /dnf_data/{run,stop} /root
-    cp /dnf_data/{df_game_r,libfd.so,publickey.pem} /home/neople/game/
-    cp /dnf_data/channel_hook.so /home/neople/channel/
-    cp /dnf_data/bridge_hook.so /home/neople/bridge/
-    cp /dnf_data/libhook.so /home/neople/game/
+    mkdir -p /dnf_data/
+    tar -xzf /dnf_tmp/Service_pluto.tar.gz -C /
+    cat /dnf_tmp/Script.tar.gz.part_aa /dnf_tmp/Script.tar.gz.part_ab /dnf_tmp/Script.tar.gz.part_ac | tar -xzf - -C /home/neople/game/
+    cp /dnf_tmp/{run,stop} /root/
+    cp /dnf_tmp/{df_game_r,privatekey.pem,publickey.pem} /home/neople/game/
+    cp /dnf_tmp/libfd.so /home/neople/game/
+    cp /dnf_tmp/channel_hook.so /home/neople/channel/
+    cp /dnf_tmp/bridge_hook.so /home/neople/bridge/
+    cp /dnf_tmp/libhook.so /home/neople/game/
+    ln -sf /home/neople/game/libnxencryption.so /lib/
     mkdir -p /dp2
-    cp -r /dnf_data/dp2/ /
+    cp -r /dnf_tmp/dp2/ /
     chmod -R 755 /dp2
-    mkdir -p /data
-    cp /dnf_data/readme.md /data/
     chmod +x /root/{run,stop}
-
+    rm -rf /dnf_tmp
     echo "服务端文件安装完成！"
 fi
 
@@ -61,12 +62,18 @@ fi
 # 获取 MySQL IP 并导出到环境变量
 export MYSQL_IP=$(getent hosts dnf-mysql | awk '{ print $1 }')
 
+STUN_IP=${PUBLIC_IP}
+GAME_SERVER_IP=${PUBLIC_IP}
+
 echo
 echo "========== 配置汇总 =========="
-echo "Public IP:  ${PUBLIC_IP}"
 echo "MySQL IP:   ${MYSQL_IP}"
 echo "MySQL Name: ${MYSQL_NAME}"
 echo "MySQL Pwd:  ${MYSQL_PASSWORD}"
+echo "Public IP:  ${PUBLIC_IP}"
+echo "STUN IP:    ${STUN_IP}"
+echo "GAME_SERVER_IP: ${GAME_SERVER_IP}"
+echo "GATE_AES_KEY: ${GATE_AES_KEY}"
 echo "==============================="
 echo
 
@@ -92,25 +99,6 @@ else
     exit 1
 fi
 
-#检查/data目录中是否存在指定文件，如果存在则复制到/home/neople/game目录中
-TARGET="/home/neople/game"
-
-echo "开始更新版本文件..."
-
-for file in df_game_r frida.js Script.pvf publickey.pem; do
-    src="/data/$file"
-    dst="$TARGET/$file"
-
-    if [ -f "$src" ]; then
-        echo "[OK] 复制 $file -> $TARGET"
-        cp "$src" "$dst"
-    else
-        echo "[SKIP] $file 不存在"
-    fi
-done
-
-echo "更新完成"
-
 # 启动 socat 端口转发 - 将本地 3306 端口转发到 dnf-mysql:3306
 echo "启动 socat MySQL 端口转发..."
 socat TCP-LISTEN:3306,fork,reuseaddr TCP:dnf-mysql:3306 &
@@ -118,20 +106,19 @@ socat TCP-LISTEN:3306,fork,reuseaddr TCP:dnf-mysql:3306 &
 # ---------- 检查 MySQL 连接并启动服务 ----------
 echo "正在检查 MySQL 连接..."
 
-MAX_RETRIES=10
+MAX_RETRIES=20
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if mysql -h "${MYSQL_IP}" -u "${MYSQL_NAME}" -p"${MYSQL_PASSWORD}" --ssl=0 -D d_taiwan -e "SELECT db_ip FROM db_connect LIMIT 1;" 2>/dev/null | grep -q "${MYSQL_IP}"; then
         echo "MySQL 连接成功！"
-        # 启动服务
-        cd /root && nohup ./run > /root/run.log 2>&1 &
+        # 启动服务，清空日志文件，完整记录所有输出（不截断）
+        cd /root && ./run > /root/run.log 2>&1 &
         echo "正在启动服务，请在 log 文件夹中查看启动状态..."
         break
     else
         RETRY_COUNT=$((RETRY_COUNT + 1))
-        echo "MySQL 连接失败，第 ${RETRY_COUNT} 次重试..."
-        sleep 10
+        sleep 5
     fi
 done
 
@@ -140,11 +127,8 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     # exit 1
 fi
 
-# ---------- 启动 SSH 并保持容器运行 ----------
 echo "SSH 服务启动"
-exec /usr/sbin/sshd -D
+/usr/sbin/sshd &
 
-
-
-
-
+echo "网关服务启动"
+dnf-gate-server

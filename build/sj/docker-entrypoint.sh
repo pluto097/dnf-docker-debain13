@@ -72,7 +72,7 @@ echo "MySQL Pwd:  ${MYSQL_PASSWORD}"
 echo "Public IP:  ${PUBLIC_IP}"
 echo "STUN IP:    ${STUN_IP}"
 echo "GAME_SERVER_IP: ${GAME_SERVER_IP}"
-echo "GATE_AES_KEY: ${GATE_AES_KEY}"
+echo "AES_KEY: ${AES_KEY}"
 echo "==============================="
 echo
 

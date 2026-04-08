@@ -49,7 +49,7 @@ services:
       DDNS_DOMAIN: ${DDNS_DOMAIN} # DDNS域名
       CLIENT_POOL_SIZE: 64       # 客户端池大小
       MYSQL_IP: dnf-mysql
-      GATE_AES_KEY: ${GATE_AES_KEY} # 登录网关AES密钥（自行修改在.env文件）
+      AES_KEY: ${AES_KEY} # 登录网关AES密钥（自行修改在.env文件）
       GAME_SERVER_IP: ${PUBLIC_IP}
     networks:
       - dnf_net

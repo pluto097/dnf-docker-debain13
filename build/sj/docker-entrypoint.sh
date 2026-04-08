@@ -9,21 +9,20 @@ if find /home -name "db_info_tw.*" -print -quit 2>/dev/null | grep -q .; then
     echo "服务端已安装..."
 else
     echo "开始安装服务端..."
-    mkdir -p /dnf_data/
-    tar -xzf /dnf_tmp/Service_pluto.tar.gz -C /
-    cat /dnf_tmp/Script.tar.gz.part_aa /dnf_tmp/Script.tar.gz.part_ab /dnf_tmp/Script.tar.gz.part_ac | tar -xzf - -C /home/neople/game/
-    cp /dnf_tmp/{run,stop} /root/
-    cp /dnf_tmp/{df_game_r,privatekey.pem,publickey.pem} /home/neople/game/
-    cp /dnf_tmp/libfd.so /home/neople/game/
-    cp /dnf_tmp/channel_hook.so /home/neople/channel/
-    cp /dnf_tmp/bridge_hook.so /home/neople/bridge/
-    cp /dnf_tmp/libhook.so /home/neople/game/
+    tar -xzf /tmp/dnf/Service_pluto.tar.gz -C /
+    cat /tmp/dnf/Script.tar.gz.part_* | tar -xzf - -C /home/neople/game/
+    cp /tmp/dnf/{run,stop} /root/
+    cp /tmp/dnf/{df_game_r,privatekey.pem,publickey.pem} /home/neople/game/
+    cp /tmp/dnf/libfd.so /home/neople/game/
+    cp /tmp/dnf/channel_hook.so /home/neople/channel/
+    cp /tmp/dnf/bridge_hook.so /home/neople/bridge/
+    cp /tmp/dnf/libhook.so /home/neople/game/
     ln -sf /home/neople/game/libnxencryption.so /lib/
     mkdir -p /dp2
-    cp -r /dnf_tmp/dp2/ /
+    cp -r /tmp/dnf/dp2/ /
     chmod -R 755 /dp2
     chmod +x /root/{run,stop}
-    rm -rf /dnf_tmp
+    rm -rf /tmp/*
     echo "服务端文件安装完成！"
 fi
 

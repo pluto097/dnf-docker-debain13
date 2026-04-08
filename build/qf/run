@@ -127,3 +127,4 @@ chmod 755 *
 rm -rf /home/neople/game/log/*
 sleep 1
 LD_PRELOAD="/usr/lib/libglibc_compat.so:./frida.so:./libhook.so" ./df_game_r siroco11 start &
+#LD_PRELOAD="/usr/lib/libglibc_compat.so:./libhook.so" ./df_game_r siroco52 start &

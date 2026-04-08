@@ -156,11 +156,11 @@ nano .env
 
 ```env
 MYSQL_ROOT_PASSWORD=Password123 # MySQL密码（自行修改,用户名为game）
-GATE_AES_KEY=a1b2c3d4e5f6789012345678901234567890abcdef0123456789abcdef012345 # 登录网关AES密钥（自行修改）
+AES_KEY=a1b2c3d4e5f6789012345678901234567890abcdef0123456789abcdef012345 # 登录网关AES密钥（自行修改）
 ROOT_PASSWORD=Password123 # 服务器密码（自行修改）
 PUBLIC_IP=192.168.200.131 # 本机IP（自行修改）
-AUTO_PUBLIC_IP=false # 是否自动获取公网IP，true启用 false禁用，优先级低于PUBLIC_IP。如果启用该选项，请注释掉PUBLIC_IP行。
-DDNS_ENABLE=false # 是否启用DDNS解析域名获取IP，true启用 false禁用，优先级低于PUBLIC_IP和AUTO_PUBLIC_IP。如果启用该选项，请注释掉PUBLIC_IP行，AUTO_PUBLIC_IP行填写为false。
+AUTO_PUBLIC_IP=false # 是否自动获取公网IP，true启用 false禁用，优先级低于PUBLIC_IP。如果启用该选项，请将PUBLIC_IP填写为空字符串（PUBLIC_IP=""）。
+DDNS_ENABLE=false # 是否启用DDNS解析域名获取IP，true启用 false禁用，优先级低于PUBLIC_IP和AUTO_PUBLIC_IP。如果启用该选项，请将PUBLIC_IP填写为空字符串（PUBLIC_IP=""），AUTO_PUBLIC_IP行填写为false。
 DDNS_DOMAIN= # DDNS域名，例如: your-domain.com
 
 #镜像内预置了publickey.pem和privatekey.pem，用于登录网关加密通信，建议自行生成新的密钥对并且上传更新，更多信息请参考llnut网关登录器说明
@@ -327,7 +327,7 @@ cd /root
 | `DB_USER` | String | `game` | 否 | 数据库用户名（登录网关） |
 | `DB_PASSWORD` | String | `uu5!^%jg` | 否 | 数据库密码（登录网关） |
 | `DB_NAME` | String | `d_taiwan` | 否 | 数据库名称（登录网关） |
-| `AES_KEY` | String | 从 `GATE_AES_KEY` 继承 | 否 | AES 密钥（登录网关） |
+| `AES_KEY` | String | 从 `AES_KEY` 继承 | 否 | AES 密钥（登录网关） |
 | `RSA_PRIVATE_KEY_PATH` | String | `/privatekey_data/privatekey.pem` | 否 | RSA 私钥路径 |
 | `BIND_ADDRESS` | String | `0.0.0.0:5505` | 否 | 登录网关监听地址 |
 | `INITIAL_CERA` | Integer | `1000` | 否 | 新用户初始点券 |
@@ -381,7 +381,7 @@ MYSQL_ROOT_PASSWORD=MyStrongPassword123!
 # 必须是 64 个十六进制字符 (0-9, a-f)
 # 可以使用以下命令生成：
 # openssl rand -hex 32
-GATE_AES_KEY=a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef12345678
+AES_KEY=a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef12345678
 
 # 服务器SSH根密码（自行修改）
 # ⚠️ 请修改为强密码
@@ -427,7 +427,7 @@ DDNS_DOMAIN=
 
 适用于动态 IP 但不想配置 DDNS 的场景，每次启动自动获取当前 IP：
 ```env
-# PUBLIC_IP=123.123.123.123  # 注释掉这行
+PUBLIC_IP=""
 AUTO_PUBLIC_IP=true
 DDNS_ENABLE=false
 DDNS_DOMAIN=
@@ -437,7 +437,7 @@ DDNS_DOMAIN=
 
 适用于动态 IP 且已配置 DDNS 的场景，每次启动自动解析域名：
 ```env
-# PUBLIC_IP=123.123.123.123  # 注释掉这行
+PUBLIC_IP=""
 AUTO_PUBLIC_IP=false
 DDNS_ENABLE=true
 DDNS_DOMAIN=your-domain.com

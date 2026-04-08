@@ -9,17 +9,16 @@ if find /home -name "db_info_tw.*" -print -quit 2>/dev/null | grep -q .; then
     echo "服务端已安装..."
 else
     echo "开始安装服务端..."
-    mkdir -p /dnf_data/
-    tar -xzf /dnf_tmp/Service_pluto.tar.gz -C /
-    tar -xzf /dnf_tmp/Script.tar.gz -C /home/neople/game/
-    cp /dnf_tmp/{run,stop} /root/
-    cp /dnf_tmp/{df_game_r,privatekey.pem,publickey.pem,frida.so,frida.js,frida.config} /home/neople/game/
-    cp /dnf_tmp/channel_hook.so /home/neople/channel/
-    cp /dnf_tmp/bridge_hook.so /home/neople/bridge/
-    cp /dnf_tmp/libhook.so /home/neople/game/
+    tar -xzf /tmp/dnf/Service_pluto.tar.gz -C /
+    tar -xzf /tmp/dnf/Script.tar.gz -C /home/neople/game/
+    cp /tmp/dnf/{run,stop} /root/
+    cp /tmp/dnf/{df_game_r,privatekey.pem,publickey.pem,frida.so,frida.js,frida.config} /home/neople/game/
+    cp /tmp/dnf/channel_hook.so /home/neople/channel/
+    cp /tmp/dnf/bridge_hook.so /home/neople/bridge/
+    cp /tmp/dnf/libhook.so /home/neople/game/
     ln -sf /home/neople/game/libnxencryption.so /lib/
     chmod +x /root/{run,stop}
-    rm -rf /dnf_tmp
+    rm -rf /tmp/dnf
     echo "服务端文件安装完成！"
 fi
 
@@ -69,7 +68,7 @@ echo "MySQL Pwd:  ${MYSQL_PASSWORD}"
 echo "Public IP:  ${PUBLIC_IP}"
 echo "STUN IP:    ${STUN_IP}"
 echo "GAME_SERVER_IP: ${GAME_SERVER_IP}"
-echo "GATE_AES_KEY: ${GATE_AES_KEY}"
+echo "AES_KEY: ${AES_KEY}"
 echo "==============================="
 echo
 

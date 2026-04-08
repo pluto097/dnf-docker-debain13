@@ -15,28 +15,25 @@ RUN mkdir -p /usr/local/share/GeoIP && \
     wget -q -O /usr/local/share/GeoIP/GeoIP.dat.gz https://mailfud.org/geoip-legacy/GeoIP.dat.gz && \
     gunzip /usr/local/share/GeoIP/GeoIP.dat.gz
 
-# Download and extract MySQL 5.7 binary client - only keep what we need (client tools only)
-RUN wget -q -O /tmp/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz && \
-    tar -xzf /tmp/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz -C /usr/local && \
-    mv /usr/local/mysql-5.7.44-linux-glibc2.12-x86_64 /usr/local/mysql && \
-    # Remove unnecessary files to reduce size: debug, docs, headers, tests, man pages
-    rm -rf /usr/local/mysql/docs /usr/local/mysql/man /usr/local/mysql/mysql-test \
-       /usr/local/mysql/data /usr/local/mysql/lib/*.a /usr/local/mysql/lib/debug \
-       /usr/local/mysql/include /usr/local/mysql/docs /usr/local/mysql/share/man \
-       /usr/local/mysql/bin/mysqld /usr/local/mysql/bin/mysqld_safe \
-       /usr/local/mysql/bin/mysql_install_db /usr/local/mysql/bin/mysql_upgrade \
-       /usr/local/mysql/bin/mysqladmin /usr/local/mysql/bin/mysqlbinlog \
-       /usr/local/mysql/bin/mysqlcheck /usr/local/mysql/bin/mysqldump \
-       /usr/local/mysql/bin/mysqlimport /usr/local/mysql/bin/mysqlshow \
-       /usr/local/mysql/bin/mysql_plugin /usr/local/mysql/bin/mysql_config_editor \
-       /usr/local/mysql/bin/mysql_*debug /usr/local/mysql/bin/mysqld_multi \
-       /usr/local/mysql/bin/mysqldumpslow && \
-    rm -f /tmp/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz
+# 下载 MySQL
+RUN wget -q -O /tmp/mysql.tar.gz https://cdn.mysql.com/Downloads/MySQL-5.7/mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz && \
+    tar -xzf /tmp/mysql.tar.gz -C /tmp && \
+    mkdir -p /opt/mysql-min && \
+    cp /tmp/mysql-5.7.44-linux-glibc2.12-x86_64/bin/mysql /opt/mysql-min/ && \
+    cp /tmp/mysql-5.7.44-linux-glibc2.12-x86_64/lib/libmysqlclient.so* /opt/mysql-min/ && \
+    strip /opt/mysql-min/mysql || true && \
+    rm -rf /tmp/mysql*
 
 ARG DNF_COMPAT_LAYER_VERSION="0.1.0"
 RUN git clone --branch ${DNF_COMPAT_LAYER_VERSION} --depth 1 https://github.com/llnut/dnf-compat-layer.git /src \
     && cd /src && cargo build --workspace --release --target i686-unknown-linux-gnu \
-    && rm -rf /src/target/i686-unknown-linux-gnu/release/deps /src/target/i686-unknown-linux-gnu/release/build
+    && rm -rf /src/target/i686-unknown-linux-gnu/release/deps /src/target/i686-unknown-linux-gnu/release/build \
+    && rm -rf /src/.git "${RUSTUP_HOME}" "${CARGO_HOME}/registry" "${CARGO_HOME}/git"
+
+# Clean up build tools to reduce builder size
+RUN apt-get purge -y --auto-remove gcc-multilib git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 
 FROM debian:stable-slim
@@ -46,6 +43,21 @@ LABEL maintainer="pluto"
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
+# 从构建阶段复制文件到最终镜像
+# GeoIP 数据库
+COPY --from=builder /usr/local/share/GeoIP /usr/local/share/GeoIP
+# glibc 兼容层
+COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libglibc_compat.so /usr/lib/libglibc_compat.so
+# GeoIP 兼容层
+COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libgeoip_compat.so /lib/i386-linux-gnu/libGeoIP.so.1
+# MySQL 5.7 binary client - already cleaned in builder stage
+COPY --from=builder /opt/mysql-min /opt/mysql-min
+
+# 复制预配置的游戏数据文件到根目录
+COPY dnf_data/ qf/ /tmp/dnf/
+
+# 系统安装、配置、解压游戏数据全部合并到一层，减少镜像层
+ARG GATE_VERSION="0.3.0"
 RUN dpkg --add-architecture i386 \
     && apt-get update && apt-get install -y --no-install-recommends \
     procps psmisc net-tools netcat-openbsd \
@@ -82,21 +94,8 @@ RUN dpkg --add-architecture i386 \
     -e 's/^PasswordAuthentication no/PasswordAuthentication yes/' \
     -e 's/^UsePAM yes/UsePAM no/' \
     /etc/ssh/sshd_config \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/*
-
-# 从构建阶段复制文件到最终镜像
-# GeoIP 数据库
-COPY --from=builder /usr/local/share/GeoIP /usr/local/share/GeoIP
-# glibc 兼容层
-COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libglibc_compat.so /usr/lib/libglibc_compat.so
-# GeoIP 兼容层
-COPY --from=builder /src/target/i686-unknown-linux-gnu/release/libgeoip_compat.so /lib/i386-linux-gnu/libGeoIP.so.1
-# MySQL 5.7 binary client - already cleaned in builder stage
-COPY --from=builder /usr/local/mysql /usr/local/mysql
-
-# Install additional i386 shared libraries and download dnf-gate-server
-ARG GATE_VERSION="0.3.0"
-RUN GATE_REPO="llnut/dnf-login" && GATE_TARGET="x86_64-unknown-linux-musl" && \
+    # Install dnf-gate-server
+    && GATE_REPO="llnut/dnf-login" && GATE_TARGET="x86_64-unknown-linux-musl" && \
     if [ -z "${GATE_VERSION}" ]; then \
         GATE_VERSION=$(wget -qO- "https://api.github.com/repos/${GATE_REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\(.*\)".*/\1/'); \
     fi && \
@@ -109,17 +108,15 @@ RUN GATE_REPO="llnut/dnf-login" && GATE_TARGET="x86_64-unknown-linux-musl" && \
     ACTUAL=$(sha256sum "/tmp/${GATE_ASSET}" | awk '{print $1}') && \
     [ "$EXPECTED" = "$ACTUAL" ] || { echo "ERROR: checksum mismatch for ${GATE_ASSET}" >&2; exit 1; } && \
     tar -xzf "/tmp/${GATE_ASSET}" --strip-components=1 -C /usr/bin "dnf-gate-server-${GATE_VERSION}-${GATE_TARGET}/dnf-gate-server" && \
-    rm -f "/tmp/${GATE_ASSET}" "/tmp/${GATE_ASSET}.sha256"
+    cp /tmp/dnf/docker-entrypoint.sh / && \
+    # Cleanup everything in one go
+    rm -rf "/tmp/${GATE_ASSET}" "/tmp/${GATE_ASSET}.sha256" && \
+    rm -rf /var/lib/apt/lists/* /root/.cache && \
+    apt-get clean
 
-# 复制预配置的游戏数据文件到根目录，合并清理步骤
-COPY dnf_data/ /dnf_tmp/
-COPY qf/ /dnf_tmp/
-RUN cp /dnf_tmp/docker-entrypoint.sh / \
-    && chmod +x /docker-entrypoint.sh \
-    && rm -rf /tmp/* /var/tmp/* /root/.cache
 
 #环境变量
-ENV PATH="/usr/local/mysql/bin:${PATH}"
+ENV PATH="/opt/mysql-min:${PATH}"
 ENV ROOT_PASSWORD=Mypassword123 
 ENV PUBLIC_IP=
 ENV MYSQL_IP=127.0.0.1

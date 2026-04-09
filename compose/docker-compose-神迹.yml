@@ -2,7 +2,6 @@
 services:
   dnf-mysql:
     image: pluto06199/dnf-mysql:latest
-    stop_grace_period: 30s
     container_name: dnf-mysql
     restart: unless-stopped
     ports:

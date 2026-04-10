@@ -3,7 +3,7 @@
 set -e
 
 # 使用官方脚本启动 MySQL
-/docker-entrypoint.sh mysqld &
+/entrypoint.sh mysqld &
 MYSQL_PID=$!
 
 #echo "等待 MySQL 启动就绪..."
@@ -26,7 +26,7 @@ if [ -f "/tmp/dnf.sql" ]; then
     if [ "$exists" != "1" ]; then
         echo "正在恢复数据库备份..."
         
-        if ! mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql; then
+        if ! mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" < /tmp/dnf.sql; then
             echo "数据库恢复失败" >&2
             exit 1
         fi

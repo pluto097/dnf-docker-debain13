@@ -12,7 +12,7 @@ else
     tar -xzf /tmp/dnf/Service_pluto.tar.gz -C /
     tar -xzf /tmp/dnf/Script.tar.gz -C /home/neople/game/
     cp /tmp/dnf/{run,stop} /root/
-    cp /tmp/dnf/{df_game_r,privatekey.pem,publickey.pem,frida.so,frida.js,frida.config} /home/neople/game/
+    cp /tmp/dnf/{df_game_r,privatekey.pem,publickey.pem,frida.so,frida.js,frida.config,frida_config.json} /home/neople/game/
     cp /tmp/dnf/channel_hook.so /home/neople/channel/
     cp /tmp/dnf/bridge_hook.so /home/neople/bridge/
     cp /tmp/dnf/libhook.so /home/neople/game/

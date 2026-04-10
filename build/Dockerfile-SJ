@@ -81,6 +81,7 @@ RUN dpkg --add-architecture i386 \
     && ln -sf /usr/lib/i386-linux-gnu/libssl.so.3 /lib/i386-linux-gnu/libssl.so.6 2>/dev/null || true \
     && ln -sf /usr/lib/i386-linux-gnu/libcrypto.so.3 /lib/i386-linux-gnu/libcrypto.so.6 2>/dev/null || true \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && ln -s /opt/mysql-min/mysql /usr/local/bin/mysql \
     # Generate SSH host keys in same layer to avoid extra layer size
     && ssh-keygen -A \
     && mkdir -p /run/sshd \

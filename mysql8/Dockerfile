@@ -6,7 +6,7 @@ LABEL maintainer="Pluto"
 #COPY init/my.cnf /etc/mysql/conf.d/my.cnf
 # 复制SQL文件
 COPY init/dnf_mysql8.sql /tmp/dnf.sql
-
+COPY init/my.cnf /etc/mysql/conf.d/my.cnf
 COPY docker-entrypoint.sh /mysqlstart.sh
 RUN chmod +x /mysqlstart.sh
 

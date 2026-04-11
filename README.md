@@ -249,7 +249,7 @@ docker compose logs -f dnf-server
 #### 第五步：配置客户端
 **清风客户端**：[百度网盘](https://pan.baidu.com/s/1AuDJ-VO4A9uToAsrg6ETGw?pwd=sora)，提取码：`sora`（该客户端已集成llnut登陆器，无需额外下载）
 
-**神迹客户端**：[百度网盘](https://pan.baidu.com/s/1i79H2LY1NkFzLeK_BxNGfQ?pwd=4h3p)，提取码：`4h3p`(该客户端未集成llnut登陆器，需要自行下载并配置)
+**神迹客户端**：[百度网盘](https://pan.baidu.com/s/1X_2jDxWHyTY_VOtQiaKWKw?pwd=qanh)，提取码：`qanh`(该客户端未集成llnut登陆器，需要自行下载并配置)
 
 **llnut登陆器**：[llnut/dnf-login](https://github.com/llnut/dnf-login)
 
